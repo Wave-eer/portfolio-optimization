@@ -1,0 +1,29 @@
+{
+    "TSLA": {
+        "ADF_Close_p_val": 0.7270419411549222,
+        "ADF_Close_Stationary": false,
+        "ADF_Returns_p_val": 0.0,
+        "ADF_Returns_Stationary": true,
+        "Value_at_Risk_95": 0.051663755152845575,
+        "Sharpe_Ratio": 0.7944370048126024,
+        "Num_Outliers_3std": 46
+    },
+    "BND": {
+        "ADF_Close_p_val": 0.7219178929403527,
+        "ADF_Close_Stationary": false,
+        "ADF_Returns_p_val": 5.568144997183943e-28,
+        "ADF_Returns_Stationary": true,
+        "Value_at_Risk_95": 0.004756441721589809,
+        "Sharpe_Ratio": 0.37558836562726144,
+        "Num_Outliers_3std": 33
+    },
+    "SPY": {
+        "ADF_Close_p_val": 0.9966585501594004,
+        "ADF_Close_Stationary": false,
+        "ADF_Returns_p_val": 4.046275813952904e-30,
+        "ADF_Returns_Stationary": true,
+        "Value_at_Risk_95": 0.016650338186894275,
+        "Sharpe_Ratio": 0.8174619552359101,
+        "Num_Outliers_3std": 39
+    }
+}

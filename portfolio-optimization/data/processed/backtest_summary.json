@@ -1,0 +1,16 @@
+{
+    "Strategy_Metrics": {
+        "Total Return": 0.11952176396487402,
+        "Annualized Return": 0.11995589961557918,
+        "Annualized Volatility": 0.09182887467611497,
+        "Sharpe Ratio": 1.306298264447535,
+        "Max Drawdown": -0.08385597005131805
+    },
+    "Benchmark_Metrics": {
+        "Total Return": 0.13852502729361937,
+        "Annualized Return": 0.13903236879464043,
+        "Annualized Volatility": 0.119825215797358,
+        "Sharpe Ratio": 1.1602930807966543,
+        "Max Drawdown": -0.11288785350218708
+    }
+}

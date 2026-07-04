@@ -1,0 +1,22 @@
+{
+    "Max_Sharpe": {
+        "weights": {
+            "TSLA": 0.0,
+            "BND": 0.54675,
+            "SPY": 0.45325
+        },
+        "return": 0.07632462756134484,
+        "volatility": 0.08823337547684675,
+        "sharpe_ratio": 0.865031255450191
+    },
+    "Min_Volatility": {
+        "weights": {
+            "TSLA": 0.0,
+            "BND": 0.94538,
+            "SPY": 0.05462
+        },
+        "return": 0.026749737142168894,
+        "volatility": 0.052234596942318114,
+        "sharpe_ratio": 0.5121076586789447
+    }
+}
