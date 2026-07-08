@@ -67,3 +67,74 @@ def calculate_sharpe_ratio(returns, risk_free_rate=0.0, periods_per_year=252):
     daily_sharpe = excess_return / std_return
     annualized_sharpe = daily_sharpe * np.sqrt(periods_per_year)
     return annualized_sharpe
+
+def calculate_cvar(returns, confidence_level=0.95):
+    """
+    Calculates historical Conditional Value at Risk (CVaR) or Expected Shortfall.
+    """
+    cutoff = 1 - confidence_level
+    var = calculate_var(returns, confidence_level=confidence_level)
+    # Average of returns that are worse (lower) than the negative VaR
+    # Since VaR is reported as positive number, lower is < -VaR
+    worse_returns = returns[returns <= -var]
+    if len(worse_returns) == 0:
+        return var
+    cvar = -worse_returns.mean()
+    return cvar
+
+def calculate_max_drawdown(prices):
+    """
+    Calculates maximum drawdown from a price series.
+    Returns value as a percentage change (negative float).
+    """
+    if len(prices) == 0:
+        return 0.0
+    roll_max = prices.cummax()
+    drawdown = (prices - roll_max) / roll_max
+    return float(drawdown.min())
+
+def calculate_sortino_ratio(returns, risk_free_rate=0.0, periods_per_year=252):
+    """
+    Calculates the historical annualized Sortino Ratio (downside deviation risk-adjusted return).
+    """
+    mean_return = returns.mean()
+    # Downside deviation uses only negative returns
+    downside_returns = returns[returns < 0]
+    if len(downside_returns) == 0:
+        return 0.0
+    downside_std = np.sqrt(np.mean(downside_returns ** 2))
+    if downside_std == 0:
+        return 0.0
+    
+    excess_return = mean_return - (risk_free_rate / periods_per_year)
+    daily_sortino = excess_return / downside_std
+    annualized_sortino = daily_sortino * np.sqrt(periods_per_year)
+    return annualized_sortino
+
+def calculate_skewness(returns):
+    """
+    Calculates the skewness of returns.
+    """
+    from scipy.stats import skew
+    return float(skew(returns.dropna()))
+
+def calculate_kurtosis(returns):
+    """
+    Calculates the excess kurtosis of returns.
+    """
+    from scipy.stats import kurtosis
+    return float(kurtosis(returns.dropna()))
+
+def run_jarque_bera_test(returns):
+    """
+    Runs the Jarque-Bera test for normality.
+    Returns a dict with jb_stat, p_value, and whether returns are normal (p_value > 0.05).
+    """
+    from scipy.stats import jarque_bera
+    stat, p_value = jarque_bera(returns.dropna())
+    return {
+        "jb_stat": float(stat),
+        "p_value": float(p_value),
+        "is_normal": bool(p_value > 0.05)
+    }
+

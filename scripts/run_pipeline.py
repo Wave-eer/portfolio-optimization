@@ -14,7 +14,9 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from src.data_loader import fetch_data, clean_data, save_data, load_local_data
 from src.eda_utils import (
     calculate_daily_returns, calculate_rolling_stats, detect_outliers,
-    run_adf_test, calculate_var, calculate_sharpe_ratio
+    run_adf_test, calculate_var, calculate_sharpe_ratio,
+    calculate_cvar, calculate_max_drawdown, calculate_sortino_ratio,
+    calculate_skewness, calculate_kurtosis, run_jarque_bera_test
 )
 from src.models import (
     calculate_metrics, fit_auto_arima, forecast_arima,
@@ -25,9 +27,15 @@ from src.portfolio import (
 )
 from src.backtest import run_backtest, calculate_backtest_metrics
 
+# Standard library and third party imports
+from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
+from statsmodels.tsa.seasonal import seasonal_decompose
+from scipy.stats import norm
+
+
 def main():
     # 1. Setup paths
-    base_dir = "portfolio-optimization"
+    base_dir = "."
     data_dir = os.path.join(base_dir, "data", "processed")
     plot_dir = os.path.join(base_dir, "plots")
     os.makedirs(plot_dir, exist_ok=True)
@@ -93,8 +101,67 @@ def main():
     plt.tight_layout()
     plt.savefig(os.path.join(plot_dir, "rolling_volatility.png"))
     plt.close()
-    
-    # Calculate Stationarity & Risk Metrics
+
+    # Normality Diagnostics: Return Distribution & Boxplots
+    for ticker in tickers:
+        rets = returns_dict[ticker]
+        
+        # Histograms + KDE + Normal fit overlay
+        plt.figure(figsize=(10, 5))
+        sns.histplot(rets, kde=True, stat="density", label="Historical Returns", bins=50, alpha=0.6)
+        
+        # Fit normal distribution
+        mu, std = norm.fit(rets)
+        xmin, xmax = plt.xlim()
+        x = np.linspace(xmin, xmax, 100)
+        p = norm.pdf(x, mu, std)
+        plt.plot(x, p, 'r--', linewidth=2, label=f"Normal Fit (mu={mu:.4f}, std={std:.4f})")
+        
+        plt.title(f"{ticker} Returns Distribution vs. Normal Curve")
+        plt.xlabel("Daily Return")
+        plt.ylabel("Density")
+        plt.legend()
+        plt.grid(True)
+        plt.tight_layout()
+        plt.savefig(os.path.join(plot_dir, f"{ticker}_returns_distribution.png"))
+        plt.close()
+        
+        # Boxplot
+        plt.figure(figsize=(6, 4))
+        sns.boxplot(y=rets)
+        plt.title(f"{ticker} Returns Boxplot (Outlier Analysis)")
+        plt.ylabel("Daily Return")
+        plt.grid(True)
+        plt.tight_layout()
+        plt.savefig(os.path.join(plot_dir, f"{ticker}_returns_boxplot.png"))
+        plt.close()
+
+    # Autocorrelation (ACF / PACF) Analysis
+    for ticker in tickers:
+        rets = returns_dict[ticker]
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
+        plot_acf(rets, lags=40, ax=ax1, title=f"{ticker} ACF (Returns)")
+        plot_pacf(rets, lags=40, ax=ax2, title=f"{ticker} PACF (Returns)")
+        plt.tight_layout()
+        plt.savefig(os.path.join(plot_dir, f"{ticker}_acf_pacf.png"))
+        plt.close()
+
+    # Time Series Decomposition (Trend, Seasonal, Residual)
+    # Daily stock data has a lot of noise, decompose with period=252 (annual business days)
+    for ticker in tickers:
+        prices = cleaned_data[ticker]['Adj Close']
+        # Resample to daily frequency and fill gaps to prevent statsmodels errors on missing business days
+        prices_resampled = prices.asfreq('D').ffill()
+        result = seasonal_decompose(prices_resampled, model='additive', period=365)
+        
+        fig = result.plot()
+        fig.set_size_inches(12, 8)
+        plt.suptitle(f"{ticker} Price Additive Decomposition (365d Period)", y=1.02, fontsize=14)
+        plt.tight_layout()
+        plt.savefig(os.path.join(plot_dir, f"{ticker}_decomposition.png"))
+        plt.close()
+
+    # Calculate Stationarity & Comprehensive Risk Metrics
     for ticker in tickers:
         adj_close = cleaned_data[ticker]['Adj Close']
         rets = returns_dict[ticker]
@@ -103,17 +170,37 @@ def main():
         adf_rets = run_adf_test(rets)
         
         var_95 = calculate_var(rets, confidence_level=0.95)
+        var_99 = calculate_var(rets, confidence_level=0.99)
+        cvar_95 = calculate_cvar(rets, confidence_level=0.95)
+        cvar_99 = calculate_cvar(rets, confidence_level=0.99)
+        
+        max_dd = calculate_max_drawdown(adj_close)
         sharpe = calculate_sharpe_ratio(rets)
+        sortino = calculate_sortino_ratio(rets)
+        
+        skewness = calculate_skewness(rets)
+        kurtosis = calculate_kurtosis(rets)
+        jb_res = run_jarque_bera_test(rets)
         
         outliers = detect_outliers(rets, threshold=3.0)
         
         eda_summary[ticker] = {
-            "ADF_Close_p_val": adf_close["p_value"],
+            "ADF_Close_p_val": float(adf_close["p_value"]),
             "ADF_Close_Stationary": bool(adf_close["is_stationary"]),
-            "ADF_Returns_p_val": adf_rets["p_value"],
+            "ADF_Returns_p_val": float(adf_rets["p_value"]),
             "ADF_Returns_Stationary": bool(adf_rets["is_stationary"]),
             "Value_at_Risk_95": float(var_95),
+            "Value_at_Risk_99": float(var_99),
+            "Conditional_VaR_95": float(cvar_95),
+            "Conditional_VaR_99": float(cvar_99),
+            "Max_Drawdown": float(max_dd),
             "Sharpe_Ratio": float(sharpe),
+            "Sortino_Ratio": float(sortino),
+            "Skewness": float(skewness),
+            "Kurtosis": float(kurtosis),
+            "Jarque_Bera_stat": float(jb_res["jb_stat"]),
+            "Jarque_Bera_p_val": float(jb_res["p_value"]),
+            "Jarque_Bera_normal": bool(jb_res["is_normal"]),
             "Num_Outliers_3std": int(len(outliers))
         }
         

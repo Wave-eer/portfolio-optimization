@@ -22,7 +22,7 @@ def create_notebook(filename, cells):
     print(f"Created notebook: {filename}")
 
 def main():
-    notebooks_dir = "portfolio-optimization/notebooks"
+    notebooks_dir = "notebooks"
     os.makedirs(notebooks_dir, exist_ok=True)
     
     # ---------------------------------------------
@@ -53,8 +53,13 @@ def main():
                 "from src.data_loader import fetch_data, clean_data, save_data\n",
                 "from src.eda_utils import (\n",
                 "    calculate_daily_returns, calculate_rolling_stats, detect_outliers,\n",
-                "    run_adf_test, calculate_var, calculate_sharpe_ratio\n",
-                ")"
+                "    run_adf_test, calculate_var, calculate_sharpe_ratio,\n",
+                "    calculate_cvar, calculate_max_drawdown, calculate_sortino_ratio,\n",
+                "    calculate_skewness, calculate_kurtosis, run_jarque_bera_test\n",
+                ")\n",
+                "from statsmodels.graphics.tsaplots import plot_acf, plot_pacf\n",
+                "from statsmodels.tsa.seasonal import seasonal_decompose\n",
+                "from scipy.stats import norm"
             ]
         },
         {
@@ -188,7 +193,96 @@ def main():
             "cell_type": "markdown",
             "metadata": {},
             "source": [
-                "### D. Outlier Detection\n",
+                "### D. Normality Diagnostics: Distribution & Box Plots\n",
+                "We overlay return histograms with normal distribution curves and plot return boxplots to evaluate fat tails and outliers."
+            ]
+        },
+        {
+            "cell_type": "code",
+            "execution_count": None,
+            "metadata": {},
+            "outputs": [],
+            "source": [
+                "for ticker in tickers:\n",
+                "    rets = returns_dict[ticker]\n",
+                "    plt.figure(figsize=(10, 4))\n",
+                "    sns.histplot(rets, kde=True, stat=\"density\", label=\"Historical Returns\", bins=50, alpha=0.6)\n",
+                "    \n",
+                "    # Normal curve fit overlay\n",
+                "    mu, std = norm.fit(rets)\n",
+                "    xmin, xmax = plt.xlim()\n",
+                "    x = np.linspace(xmin, xmax, 100)\n",
+                "    p = norm.pdf(x, mu, std)\n",
+                "    plt.plot(x, p, 'r--', linewidth=2, label=f\"Normal Fit (mu={mu:.4f}, std={std:.4f})\")\n",
+                "    \n",
+                "    plt.title(f\"{ticker} Returns Distribution vs. Normal Curve\", fontsize=12)\n",
+                "    plt.xlabel(\"Daily Return\")\n",
+                "    plt.ylabel(\"Density\")\n",
+                "    plt.legend()\n",
+                "    plt.grid(True)\n",
+                "    plt.show()\n",
+                "    \n",
+                "    plt.figure(figsize=(5, 3))\n",
+                "    sns.boxplot(y=rets)\n",
+                "    plt.title(f\"{ticker} Returns Boxplot (Outliers)\", fontsize=12)\n",
+                "    plt.ylabel(\"Daily Return\")\n",
+                "    plt.grid(True)\n",
+                "    plt.show()"
+            ]
+        },
+        {
+            "cell_type": "markdown",
+            "metadata": {},
+            "source": [
+                "### E. Autocorrelation (ACF / PACF) Analysis\n",
+                "We construct ACF and PACF plots for daily returns to study correlation patterns before modeling."
+            ]
+        },
+        {
+            "cell_type": "code",
+            "execution_count": None,
+            "metadata": {},
+            "outputs": [],
+            "source": [
+                "for ticker in tickers:\n",
+                "    rets = returns_dict[ticker]\n",
+                "    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 4))\n",
+                "    plot_acf(rets, lags=40, ax=ax1, title=f\"{ticker} ACF (Returns)\")\n",
+                "    plot_pacf(rets, lags=40, ax=ax2, title=f\"{ticker} PACF (Returns)\")\n",
+                "    plt.tight_layout()\n",
+                "    plt.show()"
+            ]
+        },
+        {
+            "cell_type": "markdown",
+            "metadata": {},
+            "source": [
+                "### F. Time Series Decomposition (Trend, Seasonal, Residual)\n",
+                "We decompose the adjusted closing prices to visualize trend and seasonal components over a 365d daily period."
+            ]
+        },
+        {
+            "cell_type": "code",
+            "execution_count": None,
+            "metadata": {},
+            "outputs": [],
+            "source": [
+                "for ticker in tickers:\n",
+                "    prices = cleaned_data[ticker]['Adj Close']\n",
+                "    prices_resampled = prices.asfreq('D').ffill()\n",
+                "    result = seasonal_decompose(prices_resampled, model='additive', period=365)\n",
+                "    \n",
+                "    fig = result.plot()\n",
+                "    fig.set_size_inches(12, 8)\n",
+                "    plt.suptitle(f\"{ticker} Price Additive Decomposition (365d Period)\", y=1.02, fontsize=14)\n",
+                "    plt.show()"
+            ]
+        },
+        {
+            "cell_type": "markdown",
+            "metadata": {},
+            "source": [
+                "### G. Outlier Detection\n",
                 "Identify dates where daily returns are greater than 3 standard deviations away from the mean."
             ]
         },
@@ -235,7 +329,7 @@ def main():
             "cell_type": "markdown",
             "metadata": {},
             "source": [
-                "## 5. Risk Metrics (Value at Risk & Sharpe Ratio)"
+                "## 5. Risk & Statistics Diagnostics"
             ]
         },
         {
@@ -247,11 +341,27 @@ def main():
                 "for ticker in tickers:\n",
                 "    var_95 = calculate_var(returns_dict[ticker], confidence_level=0.95)\n",
                 "    var_99 = calculate_var(returns_dict[ticker], confidence_level=0.99)\n",
+                "    cvar_95 = calculate_cvar(returns_dict[ticker], confidence_level=0.95)\n",
+                "    cvar_99 = calculate_cvar(returns_dict[ticker], confidence_level=0.99)\n",
+                "    max_dd = calculate_max_drawdown(cleaned_data[ticker]['Adj Close'])\n",
                 "    sharpe = calculate_sharpe_ratio(returns_dict[ticker])\n",
-                "    print(f\"\\n--- Risk Metrics for {ticker} ---\")\n",
+                "    sortino = calculate_sortino_ratio(returns_dict[ticker])\n",
+                "    skewness = calculate_skewness(returns_dict[ticker])\n",
+                "    kurtosis = calculate_kurtosis(returns_dict[ticker])\n",
+                "    jb_res = run_jarque_bera_test(returns_dict[ticker])\n",
+                "    \n",
+                "    print(f\"\\n--- Advanced Risk & Normality Metrics for {ticker} ---\")\n",
                 "    print(f\"Value at Risk (95% Confidence): {var_95*100:.2f}%\")\n",
                 "    print(f\"Value at Risk (99% Confidence): {var_99*100:.2f}%\")\n",
-                "    print(f\"Annualized Sharpe Ratio: {sharpe:.4f}\")"
+                "    print(f\"Conditional VaR (95% Confidence): {cvar_95*100:.2f}%\")\n",
+                "    print(f\"Conditional VaR (99% Confidence): {cvar_99*100:.2f}%\")\n",
+                "    print(f\"Maximum Historical Drawdown: {max_dd*100:.2f}%\")\n",
+                "    print(f\"Annualized Sharpe Ratio: {sharpe:.4f}\")\n",
+                "    print(f\"Annualized Sortino Ratio: {sortino:.4f}\")\n",
+                "    print(f\"Skewness: {skewness:.4f}\")\n",
+                "    print(f\"Excess Kurtosis: {kurtosis:.4f}\")\n",
+                "    print(f\"Jarque-Bera Stat: {jb_res['jb_stat']:.2f}, p-value: {jb_res['p_value']:.4e}\")\n",
+                "    print(f\"Is return normally distributed? {jb_res['is_normal']}\")"
             ]
         }
     ]

@@ -3,7 +3,9 @@ import pandas as pd
 import pytest
 from src.eda_utils import (
     calculate_daily_returns, calculate_rolling_stats,
-    run_adf_test, calculate_var, calculate_sharpe_ratio
+    run_adf_test, calculate_var, calculate_sharpe_ratio,
+    calculate_cvar, calculate_max_drawdown, calculate_sortino_ratio,
+    calculate_skewness, calculate_kurtosis, run_jarque_bera_test
 )
 from src.models import calculate_metrics
 from src.portfolio import get_portfolio_metrics, optimize_portfolio
@@ -31,6 +33,33 @@ def test_eda_metrics():
     var = calculate_var(returns, confidence_level=0.95)
     assert isinstance(var, float)
 
+    # CVaR
+    cvar = calculate_cvar(returns, confidence_level=0.95)
+    assert isinstance(cvar, float)
+    assert cvar >= var
+
+    # Max Drawdown
+    mdd = calculate_max_drawdown(prices)
+    assert isinstance(mdd, float)
+    assert mdd <= 0.0
+
+    # Sortino Ratio
+    sortino = calculate_sortino_ratio(returns)
+    assert isinstance(sortino, float)
+
+    # Skewness and Kurtosis
+    skew_val = calculate_skewness(returns)
+    kurt_val = calculate_kurtosis(returns)
+    assert isinstance(skew_val, float)
+    assert isinstance(kurt_val, float)
+
+    # Jarque-Bera
+    jb_res = run_jarque_bera_test(returns)
+    assert "jb_stat" in jb_res
+    assert "p_value" in jb_res
+    assert isinstance(jb_res["is_normal"], bool)
+
+
 def test_forecasting_metrics():
     y_true = [100, 102, 105, 103]
     y_pred = [98, 103, 104, 105]
@@ -43,6 +72,11 @@ def test_forecasting_metrics():
     assert metrics["MAPE"] > 0
 
 def test_portfolio_optimization():
+    import sys
+    print("\nDEBUG EXECUTABLE:", sys.executable)
+    print("DEBUG PATH:", sys.path)
+    import pypfopt
+    print("DEBUG PYPFOPT:", pypfopt.__file__)
     expected_returns = pd.Series([0.15, 0.05, 0.08], index=["TSLA", "BND", "SPY"])
     cov_matrix = pd.DataFrame([
         [0.09, 0.001, 0.015],

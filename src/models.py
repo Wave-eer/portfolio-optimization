@@ -100,7 +100,7 @@ class NumpyLSTM:
         }
         return y_pred[0, 0], cache
 
-    def train_model(self, X, y, epochs=15, lr=0.01):
+    def train_model(self, X, y, epochs=5, lr=0.01):
         """
         Trains the model using simplified backpropagation through time.
         """
