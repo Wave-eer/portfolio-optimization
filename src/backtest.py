@@ -109,7 +109,88 @@ def run_backtest(returns_df, weights, initial_capital=10000.0, rebalance_monthly
 
     portfolio_returns = portfolio_value.pct_change().dropna()
     return portfolio_value, portfolio_returns
+def evaluate_strategy_vs_benchmark(
+    returns_df,
+    strategy_weights,
+    benchmark_weights,
+    years=1,
+    initial_capital=10000.0,
+    rebalance_monthly=False,
+    risk_free_rate=0.0,
+    periods_per_year=252,
+    plot=True,
+):
+    """
+    Run strategy and benchmark on the final `years` of returns_df, compare cumulative returns and metrics.
 
+    Parameters:
+      - returns_df: DataFrame of daily simple returns (DatetimeIndex)
+      - strategy_weights: dict/Series/DataFrame (see run_backtest)
+      - benchmark_weights: dict/Series/DataFrame (e.g., {'SPY':0.6, 'BND':0.4})
+      - years: number of final years to hold out / backtest on
+      - initial_capital, rebalance_monthly, risk_free_rate, periods_per_year: forwarded to run_backtest/calc
+      - plot: if True, show cumulative returns plot
+
+    Returns:
+      dict with keys:
+        - 'test_returns' : DataFrame of test returns used
+        - 'strategy': {'value': Series, 'returns': Series, 'metrics': dict}
+        - 'benchmark': {'value': Series, 'returns': Series, 'metrics': dict}
+    """
+    import matplotlib.pyplot as plt
+
+    # isolate final-year test set
+    _, test_returns = isolate_final_year(returns_df, years=years)
+
+    if test_returns.shape[0] == 0:
+        raise ValueError("Test period (final year) contains no rows.")
+
+    # run backtests (use same rebalance_monthly setting for both so comparisons are apples-to-apples)
+    strat_value, strat_rets = run_backtest(test_returns, strategy_weights,
+                                           initial_capital=initial_capital,
+                                           rebalance_monthly=rebalance_monthly)
+    bench_value, bench_rets = run_backtest(test_returns, benchmark_weights,
+                                           initial_capital=initial_capital,
+                                           rebalance_monthly=rebalance_monthly)
+
+    # compute metrics
+    strat_metrics = calculate_backtest_metrics(strat_value, risk_free_rate=risk_free_rate,
+                                               periods_per_year=periods_per_year)
+    bench_metrics = calculate_backtest_metrics(bench_value, risk_free_rate=risk_free_rate,
+                                               periods_per_year=periods_per_year)
+
+    # plot cumulative returns (normalize to 1 or initial_capital)
+    if plot:
+        plt.figure(figsize=(10, 6))
+        (strat_value / strat_value.iloc[0]).plot(label='Strategy')
+        (bench_value / bench_value.iloc[0]).plot(label='Benchmark')
+        plt.legend()
+        plt.xlabel('Date')
+        plt.ylabel('Cumulative growth (normalized)')
+        plt.title(f'Strategy vs Benchmark — final {years} year(s)')
+        plt.grid(True)
+        plt.tight_layout()
+        plt.show()
+
+    return {
+        "test_returns": test_returns,
+        "strategy": {"value": strat_value, "returns": strat_rets, "metrics": strat_metrics},
+        "benchmark": {"value": bench_value, "returns": bench_rets, "metrics": bench_metrics},
+    }
+
+
+# Example usage (not run automatically):
+# results = evaluate_strategy_vs_benchmark(
+#     returns_df=all_returns,                       # your full returns DataFrame
+#     strategy_weights=optimal_weights_from_task4,  # dict/Series/DataFrame from Task 4
+#     benchmark_weights={'SPY': 0.6, 'BND': 0.4},
+#     years=1,
+#     initial_capital=10000.0,
+#     rebalance_monthly=True,                       # or False for buy-and-hold
+#     plot=True
+# )
+# print("Strategy metrics:", results['strategy']['metrics'])
+# print("Benchmark metrics:", results['benchmark']['metrics'])
 def calculate_backtest_metrics(portfolio_value, risk_free_rate=0.0, periods_per_year=252):
     """
     Compute:
